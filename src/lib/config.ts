@@ -1,7 +1,7 @@
 export const appConfig = {
-  name: "AIVI",
-  description: "How AI-competitive is your enterprise?",
-  url: "https://aivi.co.uk",
+  name: "Cairn",
+  description: "Causal provenance graph for every agent decision. From London.",
+  url: "https://cairn.co.uk",
   navItems: [
     { title: "Dashboard", href: "/dashboard", icon: "dashboard" },
     { title: "Assessments", href: "/assessments", icon: "check" },

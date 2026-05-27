@@ -1,544 +1,422 @@
-"use client";
-
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { appConfig } from "@/lib/config";
 
-/* ─────────────────────────────────────────────────────────────────
-   Intersection Observer hook
-───────────────────────────────────────────────────────────────── */
-function useInView(threshold = 0.15) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) setVisible(true); },
-      { threshold }
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [threshold]);
-  return { ref, visible };
-}
+const ACCENT = "#5e7cff";
 
-/* ─────────────────────────────────────────────────────────────────
-   Radar Chart SVG — animated pulsing hero visual
-───────────────────────────────────────────────────────────────── */
-function RadarChart() {
-  const dimensions = [
-    { name: "Strategy", angle: -90, score: 0.72 },
-    { name: "Data", angle: -30, score: 0.45 },
-    { name: "Talent", angle: 30, score: 0.38 },
-    { name: "Operations", angle: 90, score: 0.61 },
-    { name: "Governance", angle: 150, score: 0.55 },
-    { name: "Culture", angle: 210, score: 0.49 },
-  ];
-  const cx = 200, cy = 200, maxR = 140;
-  const levels = [0.25, 0.5, 0.75, 1.0];
+type Stone = {
+  ts: string;
+  agent: string;
+  file: string;
+  model: string;
+  constraints: string;
+  rationale: string;
+  active?: boolean;
+};
 
-  function polar(angleDeg: number, radius: number) {
-    const rad = (angleDeg * Math.PI) / 180;
-    return { x: cx + radius * Math.cos(rad), y: cy + radius * Math.sin(rad) };
-  }
-
-  const dataPoints = dimensions.map((d) => polar(d.angle, maxR * d.score));
-  const dataPath = dataPoints.map((p) => `${p.x},${p.y}`).join(" ");
-
-  return (
-    <svg viewBox="0 0 400 400" className="w-full h-full">
-      <style>{`
-        @keyframes radar-pulse {
-          0%, 100% { opacity: 0.12; transform-origin: 200px 200px; transform: scale(1); }
-          50% { opacity: 0.20; transform-origin: 200px 200px; transform: scale(1.03); }
-        }
-        .radar-fill { animation: radar-pulse 3s ease-in-out infinite; }
-        @keyframes radar-dot {
-          0%, 100% { r: 4; }
-          50% { r: 6; }
-        }
-        .radar-dot { animation: radar-dot 3s ease-in-out infinite; }
-      `}</style>
-
-      {/* Grid rings */}
-      {levels.map((l) => (
-        <polygon
-          key={l}
-          points={dimensions
-            .map((d) => { const p = polar(d.angle, maxR * l); return `${p.x},${p.y}`; })
-            .join(" ")}
-          fill="none"
-          stroke="#4338ca"
-          strokeWidth="0.5"
-          opacity={0.12}
-        />
-      ))}
-
-      {/* Axes */}
-      {dimensions.map((d) => {
-        const end = polar(d.angle, maxR);
-        return (
-          <line
-            key={d.name}
-            x1={cx} y1={cy} x2={end.x} y2={end.y}
-            stroke="#4338ca"
-            strokeWidth="0.5"
-            opacity={0.1}
-          />
-        );
-      })}
-
-      {/* Data polygon — pulsing */}
-      <polygon
-        points={dataPath}
-        fill="#4338ca"
-        className="radar-fill"
-        stroke="#4338ca"
-        strokeWidth="2"
-        strokeOpacity={0.5}
-      />
-
-      {/* Data dots — pulsing */}
-      {dataPoints.map((p, i) => (
-        <circle
-          key={i}
-          cx={p.x} cy={p.y}
-          r="4"
-          fill="#4338ca"
-          className="radar-dot"
-          style={{ animationDelay: `${i * 0.3}s` }}
-        />
-      ))}
-
-      {/* Labels */}
-      {dimensions.map((d) => {
-        const p = polar(d.angle, maxR + 28);
-        return (
-          <text
-            key={d.name}
-            x={p.x} y={p.y}
-            textAnchor="middle"
-            dominantBaseline="middle"
-            fill="#6366f1"
-            fontSize="11"
-            fontWeight="500"
-            letterSpacing="0.05em"
-          >
-            {d.name}
-          </text>
-        );
-      })}
-    </svg>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────────────
-   Animated progress bar component
-───────────────────────────────────────────────────────────────── */
-function ScoreBar({
-  label,
-  score,
-  color,
-  delay,
-  visible,
-}: {
-  label: string;
-  score: number;
-  color: string;
-  delay: number;
-  visible: boolean;
-}) {
-  return (
-    <div className="flex items-center gap-4 sm:gap-6">
-      <span className="w-28 sm:w-32 text-right text-sm font-medium text-gray-500 shrink-0">
-        {label}
-      </span>
-      <div className="flex-1 relative h-3 rounded-full bg-gray-100 overflow-hidden">
-        <div
-          className="absolute inset-y-0 left-0 rounded-full transition-all ease-out"
-          style={{
-            width: visible ? `${score}%` : "0%",
-            backgroundColor: color,
-            transitionDuration: "1.2s",
-            transitionDelay: `${delay}ms`,
-          }}
-        />
-      </div>
-      <span
-        className="w-12 text-right text-sm font-semibold tabular-nums transition-all duration-700"
-        style={{
-          color,
-          opacity: visible ? 1 : 0,
-          transitionDelay: `${delay + 400}ms`,
-        }}
-      >
-        {score}%
-      </span>
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────────────
-   Dimension data
-───────────────────────────────────────────────────────────────── */
-const dimensions = [
+const stones: Stone[] = [
   {
-    name: "Strategy",
-    score: 72,
-    color: "#4338ca",
-    question: "Do you have an AI strategy aligned with business goals?",
-    desc: "Alignment between AI initiatives and core business objectives.",
+    ts: "14:08:12",
+    agent: "intent.parser",
+    file: "—",
+    model: "haiku-3.5",
+    constraints: "none",
+    rationale: "Resolve user intent: refactor auth module for SSO support.",
   },
   {
-    name: "Data",
-    score: 45,
-    color: "#4f46e5",
-    question: "Is your data infrastructure ready for AI workloads?",
-    desc: "Quality, accessibility, and governance of organizational data.",
+    ts: "14:08:47",
+    agent: "strategist",
+    file: "PLAN.md",
+    model: "opus-4.7",
+    constraints: "scope.locked",
+    rationale: "Decompose into 4 steps. Touch only src/auth/*.",
   },
   {
-    name: "Talent",
-    score: 38,
-    color: "#6366f1",
-    question: "Do you have the AI talent to execute your strategy?",
-    desc: "Skills, hiring, and upskilling across the organization.",
+    ts: "14:09:03",
+    agent: "code.reader",
+    file: "src/auth/session.ts",
+    model: "sonnet-4.6",
+    constraints: "read-only",
+    rationale: "Existing session handler uses JWT — preserve interface for downstream consumers.",
   },
   {
-    name: "Operations",
-    score: 61,
-    color: "#7c3aed",
-    question: "Are AI workflows embedded in daily operations?",
-    desc: "Integration of AI into business processes and workflows.",
+    ts: "14:09:31",
+    agent: "code.writer",
+    file: "src/auth/sso.ts",
+    model: "sonnet-4.6",
+    constraints: "scope.locked, pii.never.logged",
+    rationale: "New file. SAML-compliant assertion parser. No PII written to logs.",
+    active: true,
   },
   {
-    name: "Governance",
-    score: 55,
-    color: "#8b5cf6",
-    question: "Do you have policies for responsible AI deployment?",
-    desc: "Risk management, ethics, compliance, and oversight frameworks.",
+    ts: "14:09:52",
+    agent: "verifier",
+    file: "src/auth/sso.test.ts",
+    model: "sonnet-4.6",
+    constraints: "must.pass.tests",
+    rationale: "12 test cases pass. Edge case: malformed assertion returns null, not throws.",
   },
   {
-    name: "Culture",
-    score: 49,
-    color: "#a78bfa",
-    question: "Is your organization culturally ready for AI adoption?",
-    desc: "Leadership buy-in, experimentation mindset, and change readiness.",
+    ts: "14:10:14",
+    agent: "auditor",
+    file: "—",
+    model: "haiku-3.5",
+    constraints: "audit.verbose",
+    rationale: "Chain verified. All constraints satisfied. Provenance sealed and indexed.",
   },
 ];
 
-/* ─────────────────────────────────────────────────────────────────
-   MAIN PAGE
-───────────────────────────────────────────────────────────────── */
 export default function LandingPage() {
-  const scoreSection = useInView(0.1);
-  const processSection = useInView(0.15);
-  const dimensionSection = useInView(0.1);
-  const proofSection = useInView(0.2);
-  const ctaSection = useInView(0.2);
-
   return (
-    <div className="min-h-screen bg-white text-gray-900 selection:bg-indigo-100">
-      {/* ═══════════════════════════════════════════════════════════
+    <div
+      className="flex min-h-screen flex-col bg-[#08090d] text-[#d4d4d8]"
+      style={{ fontFamily: "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" }}
+    >
+      {/* ──────────────────────────────────────────────────────────────
           NAV
-      ═══════════════════════════════════════════════════════════ */}
-      <header className="fixed top-0 left-0 right-0 z-50 border-b border-gray-100/80 bg-white/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-          <div className="flex items-center gap-2.5">
-            <div
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-white text-sm font-bold"
-              style={{ background: "#4338ca" }}
-            >
-              A
-            </div>
-            <span className="font-semibold text-lg tracking-tight text-gray-900">AIVI</span>
-          </div>
+      ────────────────────────────────────────────────────────────── */}
+      <header className="border-b border-[#16181d]">
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
           <div className="flex items-center gap-3">
+            <div
+              className="h-2 w-2 rounded-full"
+              style={{ backgroundColor: ACCENT, boxShadow: `0 0 8px ${ACCENT}` }}
+            />
+            <span
+              className="text-base tracking-wide text-[#fafafa]"
+              style={{ fontFamily: "'Cormorant Garamond', 'Iowan Old Style', Georgia, serif", fontWeight: 600 }}
+            >
+              Cairn
+            </span>
+            <span
+              className="text-[10px] uppercase tracking-[0.25em] text-[#52525b] hidden sm:inline"
+              style={{ fontFamily: "'JetBrains Mono', 'SF Mono', Menlo, monospace" }}
+            >
+              · London
+            </span>
+          </div>
+          <div className="flex items-center gap-4">
             <Link
               href="/login"
-              className="text-sm text-gray-400 hover:text-gray-700 transition-colors px-3 py-2"
+              className="text-xs text-[#71717a] hover:text-[#fafafa] transition-colors"
+              style={{ fontFamily: "'JetBrains Mono', 'SF Mono', Menlo, monospace" }}
             >
-              Sign in
+              sign in
             </Link>
             <Link
               href="/signup"
-              className="inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium text-white transition-all hover:opacity-90"
-              style={{ background: "#4338ca" }}
+              className="text-xs border px-4 py-1.5 transition-colors"
+              style={{
+                fontFamily: "'JetBrains Mono', 'SF Mono', Menlo, monospace",
+                borderColor: `${ACCENT}66`,
+                color: ACCENT,
+              }}
             >
-              Start free diagnostic
+              get started
             </Link>
           </div>
         </div>
       </header>
 
-      {/* ═══════════════════════════════════════════════════════════
-          HERO — The question + pulsing radar chart
-      ═══════════════════════════════════════════════════════════ */}
-      <section className="relative pt-32 pb-20 px-6 overflow-hidden">
-        {/* Radar as background visual */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="w-[500px] h-[500px] sm:w-[600px] sm:h-[600px] lg:w-[700px] lg:h-[700px] opacity-[0.08]">
-            <RadarChart />
-          </div>
+      {/* ──────────────────────────────────────────────────────────────
+          HERO
+      ────────────────────────────────────────────────────────────── */}
+      <section className="mx-auto flex w-full max-w-6xl flex-col items-center px-6 pt-28 pb-16 text-center">
+        <div className="flex items-center gap-2 mb-10">
+          <span
+            className="inline-block h-2 w-2 rounded-full"
+            style={{ backgroundColor: ACCENT, boxShadow: `0 0 10px ${ACCENT}` }}
+          />
+          <span
+            className="text-[10px] tracking-[0.3em] uppercase"
+            style={{ color: ACCENT, fontFamily: "'JetBrains Mono', 'SF Mono', Menlo, monospace" }}
+          >
+            Governance Layer · Provenance Sealed
+          </span>
         </div>
 
-        <div className="relative mx-auto max-w-4xl text-center">
-          <h1 className="text-4xl sm:text-5xl lg:text-7xl font-bold tracking-tight text-gray-900 leading-[1.1]">
-            How ready is your
-            <br />
-            enterprise for AI?
-          </h1>
-          <p className="mt-6 text-lg sm:text-xl text-gray-400 font-light max-w-2xl mx-auto leading-relaxed">
-            Measure your AI competitiveness across 6 dimensions.
-            <br className="hidden sm:block" />
-            Get your radar. Build your roadmap.
-          </p>
-
-          <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link
-              href="/signup"
-              className="inline-flex items-center gap-2 rounded-xl px-8 py-4 text-base font-medium text-white transition-all hover:shadow-lg hover:shadow-indigo-200"
-              style={{ background: "#4338ca" }}
-            >
-              Start free diagnostic
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-              </svg>
-            </Link>
-            <Link
-              href="#sample"
-              className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-8 py-4 text-base font-medium text-gray-500 transition-all hover:border-indigo-300 hover:text-indigo-600"
-            >
-              See sample report
-            </Link>
-          </div>
-        </div>
-
-        {/* Foreground radar — smaller, centered below CTA */}
-        <div className="relative mx-auto mt-16 w-72 h-72 sm:w-80 sm:h-80">
-          <RadarChart />
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════════════
-          LIVE SCORE PREVIEW — 6 animated progress bars
-      ═══════════════════════════════════════════════════════════ */}
-      <section
-        className="py-20 px-6 border-y border-gray-100"
-        style={{ background: "#fafaff" }}
-        ref={scoreSection.ref}
-      >
-        <div className="mx-auto max-w-2xl">
-          <p className="text-center text-xs font-medium tracking-[0.2em] uppercase text-indigo-400 mb-2">
-            Sample Assessment
-          </p>
-          <h2 className="text-center text-2xl sm:text-3xl font-bold text-gray-900 mb-12">
-            Your AI Readiness Radar
-          </h2>
-
-          <div className="flex flex-col gap-5">
-            {dimensions.map((d, i) => (
-              <ScoreBar
-                key={d.name}
-                label={d.name}
-                score={d.score}
-                color={d.color}
-                delay={i * 150}
-                visible={scoreSection.visible}
-              />
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════════════
-          3-STEP PROCESS — Giant numbered circles
-      ═══════════════════════════════════════════════════════════ */}
-      <section className="py-28 px-6" ref={processSection.ref}>
-        <div className="mx-auto max-w-5xl">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-16 md:gap-8">
-            {[
-              {
-                num: "①",
-                title: "Assess in 10 minutes",
-                desc: "Answer targeted questions across Strategy, Data, Talent, Operations, Governance, and Culture.",
-              },
-              {
-                num: "②",
-                title: "Get your radar",
-                desc: "Receive a visual scorecard with maturity levels, dimensional breakdowns, and industry benchmarks.",
-              },
-              {
-                num: "③",
-                title: "Build your roadmap",
-                desc: "Get a prioritized 30/60/90-day transformation plan tailored to your weakest dimensions.",
-              },
-            ].map((step, i) => (
-              <div
-                key={step.title}
-                className="flex flex-col items-center text-center transition-all duration-700 ease-out"
-                style={{
-                  opacity: processSection.visible ? 1 : 0,
-                  transform: processSection.visible ? "translateY(0)" : "translateY(30px)",
-                  transitionDelay: `${i * 200}ms`,
-                }}
-              >
-                <span
-                  className="flex items-center justify-center w-20 h-20 rounded-full text-4xl mb-6"
-                  style={{
-                    background: "linear-gradient(135deg, #4338ca 0%, #6366f1 100%)",
-                    color: "white",
-                  }}
-                >
-                  {step.num}
-                </span>
-                <h3 className="text-xl font-semibold text-gray-900 mb-3">{step.title}</h3>
-                <p className="text-sm text-gray-400 leading-relaxed max-w-xs">{step.desc}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Connecting line on desktop */}
-          <div className="hidden md:block relative -mt-[7.5rem] mb-12 mx-auto" style={{ maxWidth: "66%", height: "2px" }}>
-            <div className="absolute inset-0" style={{ background: "linear-gradient(90deg, #4338ca 0%, #6366f1 50%, #a78bfa 100%)", opacity: 0.15 }} />
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════════════
-          DIMENSION DEEP-DIVE — 2x3 grid of cards
-      ═══════════════════════════════════════════════════════════ */}
-      <section
-        className="py-24 px-6 border-y border-gray-100"
-        style={{ background: "#fafaff" }}
-        ref={dimensionSection.ref}
-      >
-        <div className="mx-auto max-w-5xl">
-          <p className="text-center text-xs font-medium tracking-[0.2em] uppercase text-indigo-400 mb-2">
-            6 Dimensions
-          </p>
-          <h2 className="text-center text-2xl sm:text-3xl font-bold text-gray-900 mb-14">
-            What we measure
-          </h2>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {dimensions.map((d, i) => (
-              <div
-                key={d.name}
-                className="rounded-2xl border border-gray-100 bg-white p-7 transition-all duration-700 ease-out hover:shadow-lg hover:shadow-indigo-50 hover:border-indigo-100 group"
-                style={{
-                  opacity: dimensionSection.visible ? 1 : 0,
-                  transform: dimensionSection.visible ? "translateY(0)" : "translateY(20px)",
-                  transitionDelay: `${i * 100}ms`,
-                }}
-              >
-                <div className="flex items-center gap-3 mb-4">
-                  <div
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: d.color }}
-                  />
-                  <h3 className="text-base font-semibold text-gray-900">{d.name}</h3>
-                </div>
-                <p className="text-sm text-gray-400 leading-relaxed mb-4">{d.desc}</p>
-                <div className="rounded-lg bg-gray-50 px-4 py-3 group-hover:bg-indigo-50 transition-colors">
-                  <p className="text-xs text-gray-500 italic leading-relaxed">
-                    &ldquo;{d.question}&rdquo;
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════════════
-          SOCIAL PROOF BAR
-      ═══════════════════════════════════════════════════════════ */}
-      <section className="py-16 px-6" ref={proofSection.ref}>
-        <div
-          className="mx-auto max-w-4xl text-center transition-all duration-700"
-          style={{
-            opacity: proofSection.visible ? 1 : 0,
-          }}
+        <h1
+          className="text-7xl sm:text-8xl lg:text-[10rem] tracking-tight text-white leading-none"
+          style={{ fontFamily: "'Cormorant Garamond', 'Iowan Old Style', Georgia, serif", fontWeight: 500 }}
         >
-          <div className="inline-flex items-center gap-2 mb-4">
-            <svg className="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span className="text-sm font-medium text-indigo-500">Trusted benchmark</span>
-          </div>
-          <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6">
-            Benchmarked against 200+ enterprises
-            <br className="hidden sm:block" />
-            across 6 industries
+          Cairn
+        </h1>
+
+        <p className="mt-8 max-w-2xl text-xl sm:text-2xl text-[#d4d4d8] leading-snug">
+          Causal provenance graph for every agent decision.
+        </p>
+        <p
+          className="mt-6 text-sm text-[#71717a]"
+          style={{ fontFamily: "'JetBrains Mono', 'SF Mono', Menlo, monospace" }}
+        >
+          From London — where audit meets law.
+        </p>
+
+        <div
+          className="mt-10 inline-block border-l-2 pl-4 py-1 text-left text-sm text-[#a1a1aa] max-w-md"
+          style={{ borderColor: `${ACCENT}80` }}
+        >
+          &ldquo;Why did the AI change that file? Nobody knows.&rdquo;
+        </div>
+      </section>
+
+      {/* ──────────────────────────────────────────────────────────────
+          CAUSAL CHAIN STRIP
+      ────────────────────────────────────────────────────────────── */}
+      <section className="border-t border-[#16181d]">
+        <div className="mx-auto max-w-5xl px-6 py-16">
+          <p
+            className="text-[10px] uppercase tracking-[0.3em] text-[#71717a] mb-8 text-center"
+            style={{ fontFamily: "'JetBrains Mono', 'SF Mono', Menlo, monospace" }}
+          >
+            The causal chain
           </p>
-          <div className="flex flex-wrap justify-center gap-x-8 gap-y-2 text-sm text-gray-300 font-medium tracking-wide">
-            {["Financial Services", "Healthcare", "Manufacturing", "Retail", "Technology", "Energy"].map(
-              (industry) => (
-                <span key={industry}>{industry}</span>
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-3 text-xs sm:text-sm">
+            {["User intent", "Strategy plan", "File decision", "Constraint check", "Edit", "Verified"].map(
+              (label, idx, arr) => (
+                <div key={label} className="flex items-center gap-3">
+                  <span
+                    className="px-3 py-1.5 border rounded-sm"
+                    style={{
+                      fontFamily: "'JetBrains Mono', 'SF Mono', Menlo, monospace",
+                      borderColor: `${ACCENT}33`,
+                      color: idx === arr.length - 1 ? ACCENT : "#a1a1aa",
+                      background: idx === arr.length - 1 ? `${ACCENT}10` : "transparent",
+                    }}
+                  >
+                    {label}
+                  </span>
+                  {idx < arr.length - 1 && (
+                    <span
+                      style={{ color: ACCENT, fontFamily: "'JetBrains Mono', 'SF Mono', Menlo, monospace" }}
+                    >
+                      →
+                    </span>
+                  )}
+                </div>
               )
             )}
           </div>
         </div>
       </section>
 
-      {/* ═══════════════════════════════════════════════════════════
-          CTA
-      ═══════════════════════════════════════════════════════════ */}
-      <section
-        className="py-24 px-6 border-t border-gray-100"
-        style={{ background: "linear-gradient(180deg, #fafaff 0%, #f0eeff 100%)" }}
-        ref={ctaSection.ref}
-      >
-        <div
-          className="mx-auto max-w-3xl text-center transition-all duration-700 ease-out"
-          style={{
-            opacity: ctaSection.visible ? 1 : 0,
-            transform: ctaSection.visible ? "translateY(0)" : "translateY(20px)",
-          }}
-        >
-          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-            Find out where you stand.
-          </h2>
-          <p className="text-lg text-gray-400 mb-10">
-            Free. 10 minutes. Immediate results.
+      {/* ──────────────────────────────────────────────────────────────
+          CAIRN — stacked stones
+      ────────────────────────────────────────────────────────────── */}
+      <section className="border-t border-[#16181d]">
+        <div className="mx-auto max-w-5xl px-6 py-20">
+          <div className="flex items-center justify-between mb-10">
+            <div className="flex items-center gap-2">
+              <span
+                className="inline-block h-1.5 w-1.5 rounded-full"
+                style={{ backgroundColor: ACCENT }}
+              />
+              <span
+                className="text-[10px] uppercase tracking-[0.25em] text-[#71717a]"
+                style={{ fontFamily: "'JetBrains Mono', 'SF Mono', Menlo, monospace" }}
+              >
+                provenance.cairn / session #41a7
+              </span>
+            </div>
+            <span
+              className="text-[10px] uppercase tracking-[0.25em] text-[#52525b]"
+              style={{ fontFamily: "'JetBrains Mono', 'SF Mono', Menlo, monospace" }}
+            >
+              6 stones · sealed
+            </span>
+          </div>
+
+          {/* The stacked stones — each progressively wider at top, narrower at base = inverted cairn?
+              Real cairns vary; we'll do a natural-looking stack: small top, biggest middle, smaller base. */}
+          <div className="mx-auto flex flex-col-reverse items-center gap-1 max-w-3xl">
+            {stones.map((s, idx) => {
+              // Vary widths to look like real stones: narrower at top of stack
+              const widths = ["72%", "92%", "100%", "96%", "88%", "78%"];
+              const w = widths[idx] ?? "90%";
+              const active = s.active;
+              return (
+                <div
+                  key={s.ts}
+                  className="relative border bg-[#0a0c11] px-5 py-3 transition-colors hover:border-[#5e7cff]/40"
+                  style={{
+                    width: w,
+                    borderColor: active ? ACCENT : "#16181d",
+                    boxShadow: active ? `0 0 28px ${ACCENT}35` : undefined,
+                    borderRadius: idx % 2 === 0 ? "14px 18px 12px 16px" : "16px 12px 18px 14px",
+                  }}
+                >
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span
+                      className="text-[10px] uppercase tracking-[0.2em]"
+                      style={{
+                        color: active ? ACCENT : "#52525b",
+                        fontFamily: "'JetBrains Mono', 'SF Mono', Menlo, monospace",
+                      }}
+                    >
+                      {s.ts}
+                    </span>
+                    <span
+                      className="text-xs text-white"
+                      style={{ fontFamily: "'JetBrains Mono', 'SF Mono', Menlo, monospace" }}
+                    >
+                      {s.agent}
+                    </span>
+                    <span
+                      className="text-[10px] text-[#71717a]"
+                      style={{ fontFamily: "'JetBrains Mono', 'SF Mono', Menlo, monospace" }}
+                    >
+                      · {s.file}
+                    </span>
+                    <span
+                      className="ml-auto text-[10px] text-[#52525b]"
+                      style={{ fontFamily: "'JetBrains Mono', 'SF Mono', Menlo, monospace" }}
+                    >
+                      model: {s.model}
+                    </span>
+                  </div>
+                  <div
+                    className="mt-1 text-[10px] text-[#71717a]"
+                    style={{ fontFamily: "'JetBrains Mono', 'SF Mono', Menlo, monospace" }}
+                  >
+                    constraints: <span style={{ color: ACCENT }}>{s.constraints}</span>
+                  </div>
+                  <div className="mt-1.5 text-xs text-[#a1a1aa] leading-relaxed">{s.rationale}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          <p
+            className="mt-10 text-center text-[11px] text-[#52525b]"
+            style={{ fontFamily: "'JetBrains Mono', 'SF Mono', Menlo, monospace" }}
+          >
+            stack reads bottom-up · every stone replayable · every alternative logged
           </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link
-              href="/signup"
-              className="inline-flex items-center gap-2 rounded-xl px-8 py-4 text-base font-medium text-white transition-all hover:shadow-lg hover:shadow-indigo-200"
-              style={{ background: "#4338ca" }}
-            >
-              Start free diagnostic
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-              </svg>
-            </Link>
-            <Link
-              href="#sample"
-              className="inline-flex items-center gap-2 text-base font-medium text-indigo-500 hover:text-indigo-700 transition-colors"
-            >
-              See sample report
-            </Link>
+        </div>
+      </section>
+
+      {/* ──────────────────────────────────────────────────────────────
+          FEATURE ROW
+      ────────────────────────────────────────────────────────────── */}
+      <section className="border-t border-[#16181d]">
+        <div className="mx-auto max-w-6xl px-6 py-20">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {[
+              {
+                label: "Decision recorded",
+                desc: "Every choice the agent made — who, when, why, with what model.",
+              },
+              {
+                label: "Alternatives logged",
+                desc: "Not just what was done — what was considered and rejected.",
+              },
+              {
+                label: "Constraints captured",
+                desc: "Which guardrails were active at the moment of each decision.",
+              },
+              {
+                label: "Causal chain queryable",
+                desc: "Ask why any change happened. Walk the graph back to first cause.",
+              },
+            ].map((f) => (
+              <div
+                key={f.label}
+                className="border border-[#16181d] bg-[#0a0c11] p-5 hover:border-[#5e7cff]/40 transition-colors"
+              >
+                <div
+                  className="text-[10px] uppercase tracking-[0.2em] mb-3"
+                  style={{ color: ACCENT, fontFamily: "'JetBrains Mono', 'SF Mono', Menlo, monospace" }}
+                >
+                  ▸ feature
+                </div>
+                <div className="text-white text-sm font-medium mb-2">{f.label}</div>
+                <div className="text-xs text-[#71717a] leading-relaxed">{f.desc}</div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* ═══════════════════════════════════════════════════════════
-          FOOTER — Trust strip
-      ═══════════════════════════════════════════════════════════ */}
-      <footer className="border-t border-gray-100 py-8 px-6">
-        <div className="mx-auto max-w-6xl">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-6 text-xs text-gray-300">
-              <span>Your data is never shared.</span>
-              <span>Assessment takes 10 minutes.</span>
-              <span>Results are immediate.</span>
-            </div>
-            <div className="flex items-center gap-6 text-xs text-gray-300">
-              <span>&copy; {new Date().getFullYear()} AIVI</span>
-              <span>A 12 Cities venture</span>
-            </div>
+      {/* ──────────────────────────────────────────────────────────────
+          STATS / PROMISE
+      ────────────────────────────────────────────────────────────── */}
+      <section className="border-t border-[#16181d]" style={{ background: "#06070a" }}>
+        <div className="mx-auto max-w-3xl px-6 py-20 text-center">
+          <p
+            className="text-[10px] uppercase tracking-[0.3em] text-[#71717a] mb-6"
+            style={{ fontFamily: "'JetBrains Mono', 'SF Mono', Menlo, monospace" }}
+          >
+            The promise
+          </p>
+          <p
+            className="text-2xl sm:text-3xl text-white leading-snug"
+            style={{ fontFamily: "'Cormorant Garamond', 'Iowan Old Style', Georgia, serif", fontWeight: 500 }}
+          >
+            Every decision since deployment, replayable.
+            <br />
+            <span style={{ color: ACCENT }}>Even from six months ago.</span>
+          </p>
+        </div>
+      </section>
+
+      {/* ──────────────────────────────────────────────────────────────
+          CTA
+      ────────────────────────────────────────────────────────────── */}
+      <section className="border-t border-[#16181d]">
+        <div className="mx-auto max-w-6xl px-6 py-24 text-center">
+          <p
+            className="text-[10px] uppercase tracking-[0.3em] text-[#71717a] mb-6"
+            style={{ fontFamily: "'JetBrains Mono', 'SF Mono', Menlo, monospace" }}
+          >
+            Start the cairn
+          </p>
+          <Link
+            href="/signup"
+            className="inline-block border px-8 py-3 text-sm transition-all duration-200"
+            style={{
+              fontFamily: "'JetBrains Mono', 'SF Mono', Menlo, monospace",
+              borderColor: ACCENT,
+              color: ACCENT,
+              boxShadow: `0 0 20px ${ACCENT}30`,
+            }}
+          >
+            $ cairn record →
+          </Link>
+        </div>
+      </section>
+
+      {/* ──────────────────────────────────────────────────────────────
+          FOOTER
+      ────────────────────────────────────────────────────────────── */}
+      <footer className="border-t border-[#16181d]">
+        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-8 sm:flex-row sm:items-center sm:justify-between">
+          <div
+            className="text-xs text-[#52525b]"
+            style={{ fontFamily: "'JetBrains Mono', 'SF Mono', Menlo, monospace" }}
+          >
+            <span
+              className="text-[#a1a1aa]"
+              style={{ fontFamily: "'Cormorant Garamond', 'Iowan Old Style', Georgia, serif", fontWeight: 600, fontSize: "0.9rem" }}
+            >
+              {appConfig.name}
+            </span>
+            <span className="mx-2">·</span>
+            <span>London</span>
+            <span className="mx-2">·</span>
+            <span>cairn.co.uk</span>
           </div>
+          <a
+            href="https://abduljaleel.xyz/aletheia/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.25em] px-3 py-1.5 border transition-colors"
+            style={{
+              fontFamily: "'JetBrains Mono', 'SF Mono', Menlo, monospace",
+              borderColor: `${ACCENT}40`,
+              color: ACCENT,
+            }}
+          >
+            Part of the Aletheia stack ↗
+          </a>
         </div>
       </footer>
     </div>
